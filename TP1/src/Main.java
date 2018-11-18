@@ -63,7 +63,13 @@ public class Main {
 
 		a.initMainContainerInPlatform("localhost", "9888", "Main");
         
+		for(int i = 1; i<=4;i++)
+				a.startAgentInPlatform("Estacao"+i, "AgenteEstacao");
 		
+		for(int j = 1; j<=6;j++)
+				a.startAgentInPlatform("Aeronave"+j, "AgenteAeronave");
+		
+			
 	}
 }
 
