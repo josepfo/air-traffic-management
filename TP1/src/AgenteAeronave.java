@@ -1,21 +1,20 @@
+package Agents;
+
 import jade.core.AID;
 import jade.core.Agent;
-import jade.lang.acl.ACLMessage;
 import jade.core.behaviours.*;
-import java.util.*;
-import jade.core.behaviours.CyclicBehaviour;
-import jade.core.behaviours.OneShotBehaviour;
 import jade.domain.DFService;
 import jade.domain.FIPAException;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
+import jade.lang.acl.ACLMessage;
+import java.util.*;
 
 public class AgenteAeronave extends Agent{
-	
-	private String AEOrigem;
 	private double coordX;
 	private double coordY;
-	private String AEDestino; 
+	private double origemCoordX;
+	private double origemCoordY;
 	private double destCoordX;
 	private double destCoordY;
 	private double zonaProtegida;
@@ -23,354 +22,328 @@ public class AgenteAeronave extends Agent{
 	private int nrPassageiros;
 	private double direcaoX;
 	private double direcaoY;
-	private double velocidade;
-	private double distTotalPercorrer;
-	private double distPercorrida;
-	private String name = "";
-	// variaveis para identificar se já recebeu confirmação de ambas as estações para iniciar viagem
+	private boolean alterouDir;
+	private boolean alterouVel;
 	private boolean autorizacaoPartida;
 	private boolean autorizacaoChegada;
-	// variavel para identificar quando entra dentro da area de proximidade da estação destino
-	private boolean dentroDaAP;
-	@Override
-	protected void setup() {
-		
-		this.zonaProtegida = 2500;
-		this.zonaAlerta = 1000;
-		this.name = this.getLocalName();
-		this.autorizacaoChegada = false;
-		this.autorizacaoPartida = false;
+	private boolean dentroAP;
+	private boolean descolou;
+	private boolean fimViagem;
+	private double velocidade;
+	private double distPercorrer;
+	private double distPercorrida;
+	private List<String> aes;
+	private int conta;
+	private String name="";
 	
+	protected void setup() {
+		super.setup();
 		DFAgentDescription dfd = new DFAgentDescription();
 		dfd.setName(getAID());
 		ServiceDescription sd = new ServiceDescription();
 		sd.setName(getLocalName());
-		sd.setType(getLocalName());
+		sd.setType("Plane");
 		dfd.addServices(sd);
 		try {
 			DFService.register(this, dfd);
-		} catch (FIPAException e) {
-			
-			e.printStackTrace();
+		} catch (FIPAException fe) {
+			fe.printStackTrace();
 		}
-		
-		initAeronave();
-		this.addBehaviour(new autorizacaoDescolar());
-		this.addBehaviour(new pedidoDescolagem());
-		// duvida - ao lançar o autorizacaoDescolar só quero que o movingAeronave comece quando este terminar, como fazer?
-		
-		//this.addBehaviour(new movingAeronave(this,100));
-		// caso esteja dentro da AP pede para fazer aterragem
-		if(dentroDaAP) {
-			this.addBehaviour(new pedidoAterragem());
+		this.aes=new ArrayList<>();
+		Object[] args = getArguments();
+		if (args != null) {
+			for(int i=0;i<args.length;i++)
+				aes.add((String) args[i]);
 		}
+		conta=0;alterouDir=false;
+		alterouVel=false;
+		autorizacaoPartida=false;
+		autorizacaoChegada=false;
+		dentroAP=false;
+		descolou=false;
+		fimViagem=false;
+		velocidade=0;
+		zonaProtegida=100;
+		zonaAlerta=1000;
+		name=this.getLocalName();
+		coordX=0;
+		coordY=0;
+		direcaoX=0;
+		direcaoY=0;
+		distPercorrer=1;
+		distPercorrida=0;
+		destCoordX=0;
+		destCoordY=0;
+		origemCoordY=0;
+		origemCoordY=0;
+		addBehaviour(new Descolagem(this, 1000));
+		addBehaviour(new ReceberMsg());
+		addBehaviour(new Movimento(this, 1000));
+		addBehaviour(new EnviarCoords(this, 1000));
+		addBehaviour(new Aterragem());
 	}
 	
-	private class pedidoAterragem extends OneShotBehaviour{
-		@Override
-		public void action() {
-			
-			try {
-				
-				DFAgentDescription dfd = new DFAgentDescription();
-				ServiceDescription sd = new ServiceDescription();
-				sd.setType(AEOrigem);
-				dfd.addServices(sd);
-				
-				DFAgentDescription[] results = DFService.search(this.myAgent, dfd);
-				
-				
-				if(results.length == 1) {
-					AID provider = results[0].getName();
-					ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
-					msg.addReceiver(provider);	
-					msg.setContent("PEDIDOATERRAGEM");
-					send(msg);
-					System.out.println(name+" pediu para efetuar aterragem "+AEOrigem);
-					
-					//TODO -> implementar no comportamento que está a receber mensagens a reação da estação a este request
-				
+	private class Movimento extends TickerBehaviour {
+		public Movimento(Agent a, long period) {
+			super(a, period);
+		}
+		protected void onTick() {
+			if(velocidade!=0) {
+				coordX=coordX+velocidade*direcaoX;
+			    System.out.println(name + "-> X " + coordX);
+				coordY=coordY+velocidade*direcaoY;
+				System.out.println(name + "-> Y " + coordY);
+				distPercorrida+=velocidade;
+				distPercorrer-=velocidade;
+				if(alterouDir) {
+					distPercorrer=Math.sqrt(((Math.pow((destCoordX - coordX), 2)) + (Math.pow((destCoordY - coordY), 2))));
+					direcaoX=(destCoordX-coordX)/distPercorrer;
+					direcaoY=(destCoordY-coordY)/distPercorrer;
 				}
-				
-			}catch(FIPAException e) {
-			    	e.printStackTrace();
-			    }
-		  }
-			
-		
-	}
-	
-	
-	private class pedidoDescolagem extends OneShotBehaviour{
-		@Override
-		public void action() {
-			
-			try {
-			
-			DFAgentDescription dfd = new DFAgentDescription();
-			ServiceDescription sd = new ServiceDescription();
-			sd.setType(AEOrigem);
-			dfd.addServices(sd);
-			
-			DFAgentDescription[] results = DFService.search(this.myAgent, dfd);
-			
-			//pedido feito ao aeroporto local
-			if(results.length == 1) {
-				AID provider = results[0].getName();
-				ACLMessage msgLocal = new ACLMessage(ACLMessage.REQUEST);
-				msgLocal.addReceiver(provider);	
-				msgLocal.setContent("PEDIDOSAIDA");
-				send(msgLocal);
-				System.out.println(name+" pediu para usar pista a "+AEOrigem);
+				if(alterouDir || alterouVel) {
+					try {
+						DFAgentDescription dfd = new DFAgentDescription();
+						ServiceDescription sd = new ServiceDescription();
+						sd.setType(aes.get(conta+1));
+						dfd.addServices(sd);
+						DFAgentDescription[] results = DFService.search(this.myAgent, dfd);
+						if (results.length > 0) {
+							for (int i = 0; i < results.length; ++i) {
+								DFAgentDescription dfd2 = results[i];
+								AID provider = dfd2.getName();
+								ACLMessage msg2 = new ACLMessage(ACLMessage.INFORM);
+								msg2.addReceiver(provider);
+								msg2.setContent(coordX+";"+coordY+";"+direcaoX+";"+direcaoY+";"+distPercorrer);
+								send(msg2);
+							}
+						}
+					} catch (FIPAException fe) {
+						fe.printStackTrace();
+					}
+					alterouDir=false;
+					alterouVel=false;
+				}
 			}
-			
-			
-			DFAgentDescription dfd1 = new DFAgentDescription();
-			ServiceDescription sd1 = new ServiceDescription();
-			sd1.setType(AEDestino);
-			dfd1.addServices(sd1);
-			
-			DFAgentDescription[] results1 = DFService.search(this.myAgent, dfd1);
-			
-			
-			
-			
-			//pedido feito ao aeroporto destino
-			if(results.length == 1) {
-				AID provider1 = results1[0].getName();
-				ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
-				msg.addReceiver(provider1);	
-				msg.setContent("PEDIDOENTRADA");
-				send(msg);
-				System.out.println(name+" pediu para iniciar viagem a "+AEDestino);
-			}
-			
-			}catch (FIPAException e) {
-				
-				e.printStackTrace();
-			}
-			
-			
-			
 		}
 	}
 	
-	//comportamento que vai receber os confirms dos dois aeroportos para começar uma viagem
-	private class autorizacaoDescolar extends Behaviour {
-		private int endFlag = 0;
-		
-		@Override
-		public void action() {
-		
-			// caso seja verificada as duas autorizações este comportamento termina! 
-			if(autorizacaoPartida && autorizacaoChegada) {
+	private class Descolagem extends TickerBehaviour {
+		public Descolagem(Agent a, long period) {
+			super(a, period);
+		}
+		protected void onTick() {
+			if(conta<aes.size()-1 && velocidade==0 && !autorizacaoPartida){
 				try {
-					
-					
-				/* Enviar um inform ao aeroporto para o AE definir prioridades */
-					DFAgentDescription dfd = new DFAgentDescription();
-					ServiceDescription sd = new ServiceDescription();
-					sd.setType(AEDestino);
-					dfd.addServices(sd);
-					
-					DFAgentDescription[] results = DFService.search(this.myAgent, dfd);
-					
-					if(results.length == 1) {
-						
-						AID provider = results[0].getName();
-						ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
-						msg.addReceiver(provider);	
-						msg.setContent("INICIARVIAGEM"+";"+name+";"+coordX+";"+coordY+";"+nrPassageiros+";"+direcaoX+";"+direcaoY+";"+velocidade);
-						send(msg);
-						System.out.println(name+" A INICIAR VIAGEM PARA "+provider);
-						
+					DFAgentDescription dfd1 = new DFAgentDescription();
+					ServiceDescription sd1 = new ServiceDescription();
+					sd1.setType(aes.get(conta));
+					dfd1.addServices(sd1);
+					DFAgentDescription[] results1 = DFService.search(this.myAgent, dfd1);
+					if (results1.length > 0) {
+						for (int i = 0; i < results1.length; ++i) {
+							DFAgentDescription dfd2 = results1[i];
+							AID provider1 = dfd2.getName();
+							ACLMessage msgLocal1 = new ACLMessage(ACLMessage.REQUEST);
+							msgLocal1.addReceiver(provider1);	
+							msgLocal1.setContent("PEDIDOSAIDA");
+							System.out.println(name+" pediu para usar pista a "+aes.get(conta));
+							send(msgLocal1);
+						}
 					}
-					endFlag = 1;
-					//autorizacaoPartida = false;
-					//autorizacaoChegada = false;
-					
-					
-				}catch(FIPAException e) {
+				}catch (FIPAException e) {
 					e.printStackTrace();
 				}
-			 }
-			
-			ACLMessage msg = receive();
-			
-			if (msg != null && msg.getPerformative() == ACLMessage.CONFIRM) {
-				
-				
-				
-				if(msg.getContent().equals("AUTORIZA-SAIDA"))
-					autorizacaoPartida = true;
-				
-						
-				if( msg.getContent().equals("AUTORIZA-ENTRADA"))
-					autorizacaoChegada = true;
-				
 			}
-		}
-		
-		
-		public boolean done() {
-			if(endFlag == 1)
-				return true;
-			else return false;
-		}
-		
-	}
-	
-	private class movingAeronave extends TickerBehaviour {
-		public movingAeronave(Agent a, long tempo) {
-			super(a,tempo);
-		}
-		
-		@Override
-		protected void onTick() {
-			
-			if (destCoordX > coordX && destCoordY > coordY) {
-				coordX += velocidade;
-				coordY += velocidade;
-			}
-			if (destCoordX < coordX && destCoordY > coordY) {
-				coordX -= velocidade;
-				coordY += velocidade;
-			}
-			if (destCoordX > coordX && destCoordY < coordY) {
-				coordX += velocidade;
-				coordY -= velocidade;
-			}
-			if (destCoordX < coordX && destCoordY < coordY) {
-				coordX -= velocidade;
-				coordY -= velocidade;
-			}
-			if (destCoordY > coordY)
-				coordY += velocidade;
-			if (destCoordY < coordY)
-				coordY -= velocidade;
-			if (destCoordX > coordX)
-				coordX += velocidade;
-			if (destCoordX < coordX)
-				coordX -= velocidade;
-			
-			if(!dentroDaAP) {
-				//se a distancia que falta percorrer for menor ou igual que a zona de aproximação
-				if(Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2)) <= zonaProtegida){
-					dentroDaAP = true;
+			else if(conta<aes.size()-1 && velocidade==0 && !autorizacaoChegada) {
+				try {
+					DFAgentDescription dfd3 = new DFAgentDescription();
+					ServiceDescription sd3 = new ServiceDescription();
+					sd3.setType(aes.get(conta+1));
+					dfd3.addServices(sd3);
+					DFAgentDescription[] results2 = DFService.search(this.myAgent, dfd3);
+					if (results2.length > 0) {
+						for (int i = 0; i < results2.length; ++i) {
+							DFAgentDescription dfd4 = results2[i];
+							AID provider2 = dfd4.getName();
+							ACLMessage msgLocal2 = new ACLMessage(ACLMessage.REQUEST);
+							msgLocal2.addReceiver(provider2);	
+							msgLocal2.setContent("PEDIDOENTRADA");
+							System.out.println(name+" pediu para iniciar viagem a "+aes.get(conta+1));
+							send(msgLocal2);
+						}
+					}
+				}catch (FIPAException e) {
+					e.printStackTrace();
 				}
 			}
-			
-			if(destCoordX == coordX && destCoordY == coordY) {
-				System.out.println(name + " chegou ao destino");
-				stop();
+		}
+	}
+	
+	private class EnviarCoords extends TickerBehaviour {
+		public EnviarCoords(Agent a, long period) {
+			super(a, period);
+		}
+		protected void onTick() {
+			if(velocidade!=0){
+				try {
+					DFAgentDescription dfd = new DFAgentDescription();
+					ServiceDescription sd = new ServiceDescription();
+					sd.setType("Plane");
+					dfd.addServices(sd);
+					DFAgentDescription[] results = DFService.search(this.myAgent, dfd);
+					if (results.length > 0) {
+						for (int i = 0; i < results.length; ++i) {
+							DFAgentDescription dfd2 = results[i];
+							AID provider = dfd2.getName();
+							if(!provider.equals(this.myAgent.getAID())){
+								ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
+								msg.addReceiver(provider);
+								msg.setContent(coordX+";"+coordY+";"+direcaoX+";"+direcaoY+";"+distPercorrer+";"+destCoordX+";"+destCoordY+";"+origemCoordX+";"+origemCoordY);
+								send(msg);
+							}
+						}
+					}
+				} catch (FIPAException fe) {
+					fe.printStackTrace();
+				}
 			}
-			
-			//distPercorrida = distTotalPercorrer - (Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2)));
-			System.out.println(name+" " + "X " + coordX+ "Y " +coordY);
-			//System.out.println("Distância percorrida" +distPercorrida);
-		}
-	}
-		
-	
-
-	private void initAeronave() {
-		
-		switch(this.getLocalName()) {
-		case "Aeronave1":
-			AEOrigem = "Estacao1";
-			coordX = -10000;
-			coordY = -500;
-			AEDestino = "Estacao2";
-			destCoordX = 10000;
-			destCoordY = 500;
-			nrPassageiros = 250;
-			velocidade = 100;
-			distTotalPercorrer = Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2));
-			distPercorrida = 0;
-			break;
-			
-		case "Aeronave2":
-			AEOrigem = "Estacao1";
-			coordX = -10000;
-			coordY = 500;
-			AEDestino = "Estacao3";
-			destCoordX = 10000;
-			destCoordY = 0;
-			nrPassageiros = 250;
-			velocidade = 100;
-			distTotalPercorrer = Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2));
-			distPercorrida = 0;
-			break;
-			
-		case "Aeronave3":
-			AEOrigem = "Estacao2";
-			coordX = 10000;
-			coordY = 500;
-			AEDestino = "Estacao1";
-			destCoordX = -10000;
-			destCoordY = -500;
-			nrPassageiros = 250;
-			velocidade = 100;
-			distTotalPercorrer = Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2));
-			distPercorrida = 0;
-			break;
-		
-		case "Aeronave4":
-			AEOrigem = "Estacao2";
-			coordX = 10000;
-			coordY = 500;
-			AEDestino = "Estacao3";
-			destCoordX = 10000;
-			destCoordY = 0;
-			nrPassageiros = 250;
-			velocidade = 100;
-			distTotalPercorrer = Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2));
-			distPercorrida = 0;
-			break;
-		
-		case "Aeronave5":
-			AEOrigem = "Estacao4";
-			coordX = 0;
-			coordY = 11000;
-			AEDestino = "Estacao1";
-			destCoordX = -10000;
-			destCoordY = -500;
-			nrPassageiros = 250;
-			velocidade = 100;
-			distTotalPercorrer = Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2));
-			distPercorrida = 0;
-			break;
-			
-		case "Aeronave6":
-			AEOrigem = "Estacao4";
-			coordX = 0;
-			coordY = 11000;
-			AEDestino = "Estacao3";
-			destCoordX = 10000;
-			destCoordY = 0;
-			nrPassageiros = 250;
-			velocidade = 100;
-			distTotalPercorrer = Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2));
-			distPercorrida = 0;
-			
 		}
 	}
 	
+	private class ReceberMsg extends CyclicBehaviour {
+		public void action() {
+			if(conta<aes.size()-1) {
+				ACLMessage msg = receive();
+				if (msg != null && msg.getPerformative() == ACLMessage.INFORM) {
+					String[] coordsOutro = msg.getContent().split(";");
+					double coordXOutro=Double.parseDouble(coordsOutro[0]);
+					double coordYOutro=Double.parseDouble(coordsOutro[1]);
+					double dist = Math.sqrt(((Math.pow((coordXOutro - coordX), 2)) + (Math.pow((coordYOutro - coordY), 2))));
+					if(dist>zonaProtegida && dist<=zonaAlerta) {
+						double dirXOutro=Double.parseDouble(coordsOutro[2]);
+						double dirYOutro=Double.parseDouble(coordsOutro[3]);
+						double destXOutro=Double.parseDouble(coordsOutro[5]);
+						double destYOutro=Double.parseDouble(coordsOutro[6]);
+						double origemXOutro=Double.parseDouble(coordsOutro[7]);
+						double origemYOutro=Double.parseDouble(coordsOutro[8]);
+						double ang = Math.acos((direcaoX*dirXOutro+direcaoY*dirYOutro)/((Math.sqrt(dirXOutro*dirXOutro+dirYOutro*dirYOutro))*(Math.sqrt(direcaoX*direcaoX+direcaoY*direcaoY))));
+						if(origemCoordX==destXOutro && origemCoordY==destYOutro && origemXOutro==destCoordX && origemYOutro==destCoordY) {
+						    double rx = (direcaoX * Math.cos(Math.toRadians(-45))) - (direcaoY * Math.sin(Math.toRadians(-45)));
+						    double ry = (direcaoX * Math.sin(Math.toRadians(-45))) + (direcaoY * Math.cos(Math.toRadians(-45)));
+						    direcaoX = rx;
+						    direcaoY = ry;
+						    alterouDir=true;
+						}else if((ang!=0 && ang!=Math.PI) && (destCoordX!=destXOutro || destCoordY!=destYOutro) && (origemCoordX!=origemXOutro || origemCoordY!=origemYOutro)) {
+							double distOutro=Double.parseDouble(coordsOutro[4]);
+							if(distOutro>distPercorrer) {
+								velocidade-=20;
+								alterouVel=true;
+							} else if(distOutro<distPercorrer){
+								velocidade+=20;
+								alterouVel=true;
+							} else {
+								Random rand=null;
+								velocidade+=rand.nextInt((20 - 10) + 1) + 10;
+							}
+						}
+					}
+				}else if(msg != null && msg.getPerformative() == ACLMessage.CONFIRM) {
+					velocidade=Double.parseDouble(msg.getContent());
+				}else if (msg != null && msg.getPerformative() == ACLMessage.AGREE) {
+					autorizacaoPartida=true;
+					String[] coordsEstacao1 = msg.getContent().split(";");
+					coordX=Double.parseDouble(coordsEstacao1[0]);
+					coordY=Double.parseDouble(coordsEstacao1[1]);
+					origemCoordX=Double.parseDouble(coordsEstacao1[0]);
+					origemCoordY=Double.parseDouble(coordsEstacao1[1]);
+					System.out.println(aes.get(conta)+" confirmou pedido de "+name);
+				}else if (msg != null && msg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL) {
+					autorizacaoChegada=true;
+					String[] coordsEstacao2 = msg.getContent().split(";");
+					destCoordX=Double.parseDouble(coordsEstacao2[0]);
+					destCoordY=Double.parseDouble(coordsEstacao2[1]);
+					distPercorrer=Math.sqrt(((Math.pow((destCoordX - coordX), 2)) + (Math.pow((destCoordY - coordY), 2))));
+					direcaoX=(destCoordX-coordX)/distPercorrer;
+					direcaoY=(destCoordY-coordY)/distPercorrer;
+					velocidade=distPercorrer/50;
+					distPercorrida=0;
+					descolou=true;
+					System.out.println(aes.get(conta+1)+" confirmou pedido de "+name);
+				}
+			}
+		}
+	}
 	
+private class Aterragem extends CyclicBehaviour{
+		public void action() {
+			if(conta<aes.size()-1 && !dentroAP  && velocidade!=0) {
+				if(Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2)) <= zonaAlerta)
+					dentroAP=true;
+				if(dentroAP){
+					try {
+						DFAgentDescription dfd = new DFAgentDescription();
+						ServiceDescription sd = new ServiceDescription();
+						sd.setType(aes.get(conta+1));
+						dfd.addServices(sd);
+						DFAgentDescription[] results = DFService.search(this.myAgent, dfd);
+						if (results.length > 0) {
+							for (int i = 0; i < results.length; ++i) {
+								DFAgentDescription dfd2 = results[i];
+								AID provider = dfd2.getName();
+								ACLMessage msg2 = new ACLMessage(ACLMessage.REQUEST);
+								msg2.addReceiver(provider);
+								msg2.setContent("PEDIDOATERRAGEM");
+								System.out.println(name+" pediu para efetuar aterragem "+aes.get(conta));
+								send(msg2);
+							}
+						}
+					} catch(FIPAException e) {
+						    	e.printStackTrace();
+					}
+				}
+			}
+			if(conta<aes.size()-1 && !fimViagem && velocidade!=0){
+				if(Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2)) <= zonaProtegida)
+					fimViagem=true;
+				if(fimViagem) {
+					try {
+						DFAgentDescription dfd3 = new DFAgentDescription();
+						ServiceDescription sd3 = new ServiceDescription();
+						sd3.setType(aes.get(conta+1));
+						dfd3.addServices(sd3);
+						DFAgentDescription[] results2 = DFService.search(this.myAgent, dfd3);
+						if (results2.length > 0) {
+							for (int i = 0; i < results2.length; ++i) {
+								DFAgentDescription dfd4 = results2[i];
+								AID provider2 = dfd4.getName();
+								ACLMessage msg4 = new ACLMessage(ACLMessage.INFORM);
+								msg4.addReceiver(provider2);
+								msg4.setContent("FIMDEVIAGEM");
+								System.out.println(name+" declarou fim de viagem "+aes.get(conta));
+								send(msg4);
+							}
+						}
+					}catch(FIPAException e) {
+						 e.printStackTrace();
+					}
+					velocidade=0;
+					conta++;
+					autorizacaoPartida=false;
+					autorizacaoChegada=false;
+					fimViagem=false;
+					dentroAP=false;
+					descolou=false;
+				}
+			}
+		}
+	}
 	
-	
-	@Override
 	protected void takeDown() {
-		super.takeDown();
-		
 		try {
 			DFService.deregister(this);
-		}catch(FIPAException e) {
+		} catch (FIPAException e) {
 			e.printStackTrace();
 		}
+		super.takeDown();
 	}
-
-	//private class ReceberCoordsComp extends CyclicBehaviour{
-		
-	//}
 }
