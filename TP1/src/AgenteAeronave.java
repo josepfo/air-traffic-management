@@ -19,6 +19,8 @@ public class AgenteAeronave extends Agent{
 	private double destCoordY;
 	private double zonaProtegida;
 	private double zonaAlerta;
+	private double zonaProtegidaEstacao;
+	private double zonaAlertaEstacao;
 	private int nrPassageiros;
 	private double direcaoX;
 	private double direcaoY;
@@ -30,8 +32,11 @@ public class AgenteAeronave extends Agent{
 	private boolean descolou;
 	private boolean fimViagem;
 	private double velocidade;
+	private double velocidadeMax;
 	private double distPercorrer;
 	private double distPercorrida;
+	private double tempoDecorrido;
+	private double tempoFalta;
 	private List<String> aes;
 	private int conta;
 	private String name="";
@@ -55,7 +60,8 @@ public class AgenteAeronave extends Agent{
 			for(int i=0;i<args.length;i++)
 				aes.add((String) args[i]);
 		}
-		conta=0;alterouDir=false;
+		conta=0;
+		alterouDir=false;
 		alterouVel=false;
 		autorizacaoPartida=false;
 		autorizacaoChegada=false;
@@ -63,8 +69,11 @@ public class AgenteAeronave extends Agent{
 		descolou=false;
 		fimViagem=false;
 		velocidade=0;
+		velocidadeMax=100;
 		zonaProtegida=100;
 		zonaAlerta=1000;
+		zonaProtegidaEstacao=0;
+		zonaAlertaEstacao=0;
 		name=this.getLocalName();
 		coordX=0;
 		coordY=0;
@@ -72,6 +81,8 @@ public class AgenteAeronave extends Agent{
 		direcaoY=0;
 		distPercorrer=1;
 		distPercorrida=0;
+		tempoDecorrido=1;
+		tempoFalta=0;
 		destCoordX=0;
 		destCoordY=0;
 		origemCoordY=0;
@@ -95,11 +106,8 @@ public class AgenteAeronave extends Agent{
 				System.out.println(name + "-> Y " + coordY);
 				distPercorrida+=velocidade;
 				distPercorrer-=velocidade;
-				if(alterouDir) {
-					distPercorrer=Math.sqrt(((Math.pow((destCoordX - coordX), 2)) + (Math.pow((destCoordY - coordY), 2))));
-					direcaoX=(destCoordX-coordX)/distPercorrer;
-					direcaoY=(destCoordY-coordY)/distPercorrer;
-				}
+				tempoDecorrido++;
+				tempoFalta=distPercorrer/velocidade;
 				if(alterouDir || alterouVel) {
 					try {
 						DFAgentDescription dfd = new DFAgentDescription();
@@ -111,9 +119,15 @@ public class AgenteAeronave extends Agent{
 							for (int i = 0; i < results.length; ++i) {
 								DFAgentDescription dfd2 = results[i];
 								AID provider = dfd2.getName();
-								ACLMessage msg2 = new ACLMessage(ACLMessage.INFORM);
+								ACLMessage msg2 = new ACLMessage(ACLMessage.INFORM_IF);
 								msg2.addReceiver(provider);
-								msg2.setContent(coordX+";"+coordY+";"+direcaoX+";"+direcaoY+";"+distPercorrer);
+								if(alterouDir) {
+									distPercorrer=Math.sqrt(((Math.pow((destCoordX - coordX), 2)) + (Math.pow((destCoordY - coordY), 2))));
+									direcaoX=(destCoordX-coordX)/distPercorrer;
+									direcaoY=(destCoordY-coordY)/distPercorrer;
+									tempoFalta=distPercorrer/velocidade;
+								}
+								msg2.setContent(name+";"+tempoDecorrido+";"+tempoFalta);
 								send(msg2);
 							}
 						}
@@ -145,7 +159,6 @@ public class AgenteAeronave extends Agent{
 							AID provider1 = dfd2.getName();
 							ACLMessage msgLocal1 = new ACLMessage(ACLMessage.REQUEST);
 							msgLocal1.addReceiver(provider1);	
-							msgLocal1.setContent("PEDIDOSAIDA");
 							System.out.println(name+" pediu para usar pista a "+aes.get(conta));
 							send(msgLocal1);
 						}
@@ -165,9 +178,9 @@ public class AgenteAeronave extends Agent{
 						for (int i = 0; i < results2.length; ++i) {
 							DFAgentDescription dfd4 = results2[i];
 							AID provider2 = dfd4.getName();
-							ACLMessage msgLocal2 = new ACLMessage(ACLMessage.REQUEST);
-							msgLocal2.addReceiver(provider2);	
-							msgLocal2.setContent("PEDIDOENTRADA");
+							ACLMessage msgLocal2 = new ACLMessage(ACLMessage.REQUEST_WHEN);
+							msgLocal2.addReceiver(provider2);
+							msgLocal2.setContent(name+";"+coordX+";"+coordY+";"+velocidadeMax/2);
 							System.out.println(name+" pediu para iniciar viagem a "+aes.get(conta+1));
 							send(msgLocal2);
 						}
@@ -219,13 +232,13 @@ public class AgenteAeronave extends Agent{
 					double coordXOutro=Double.parseDouble(coordsOutro[0]);
 					double coordYOutro=Double.parseDouble(coordsOutro[1]);
 					double dist = Math.sqrt(((Math.pow((coordXOutro - coordX), 2)) + (Math.pow((coordYOutro - coordY), 2))));
+					double destXOutro=Double.parseDouble(coordsOutro[5]);
+					double destYOutro=Double.parseDouble(coordsOutro[6]);
+					double origemXOutro=Double.parseDouble(coordsOutro[7]);
+					double origemYOutro=Double.parseDouble(coordsOutro[8]);
 					if(dist>zonaProtegida && dist<=zonaAlerta) {
 						double dirXOutro=Double.parseDouble(coordsOutro[2]);
 						double dirYOutro=Double.parseDouble(coordsOutro[3]);
-						double destXOutro=Double.parseDouble(coordsOutro[5]);
-						double destYOutro=Double.parseDouble(coordsOutro[6]);
-						double origemXOutro=Double.parseDouble(coordsOutro[7]);
-						double origemYOutro=Double.parseDouble(coordsOutro[8]);
 						double ang = Math.acos((direcaoX*dirXOutro+direcaoY*dirYOutro)/((Math.sqrt(dirXOutro*dirXOutro+dirYOutro*dirYOutro))*(Math.sqrt(direcaoX*direcaoX+direcaoY*direcaoY))));
 						if(origemCoordX==destXOutro && origemCoordY==destYOutro && origemXOutro==destCoordX && origemYOutro==destCoordY) {
 						    double rx = (direcaoX * Math.cos(Math.toRadians(-45))) - (direcaoY * Math.sin(Math.toRadians(-45)));
@@ -235,21 +248,25 @@ public class AgenteAeronave extends Agent{
 						    alterouDir=true;
 						}else if((ang!=0 && ang!=Math.PI) && (destCoordX!=destXOutro || destCoordY!=destYOutro) && (origemCoordX!=origemXOutro || origemCoordY!=origemYOutro)) {
 							double distOutro=Double.parseDouble(coordsOutro[4]);
-							if(distOutro>distPercorrer) {
-								velocidade-=20;
+							if(distOutro>distPercorrer && velocidade<zonaProtegidaEstacao+zonaProtegidaEstacao/2) {
+								velocidade+=zonaProtegidaEstacao/2;
 								alterouVel=true;
-							} else if(distOutro<distPercorrer){
-								velocidade+=20;
+							} else if(distOutro<distPercorrer && velocidade>zonaProtegidaEstacao-zonaProtegidaEstacao/2){
+								velocidade-=zonaProtegidaEstacao/2;
 								alterouVel=true;
-							} else {
+							} else if(velocidade<zonaProtegidaEstacao+zonaProtegidaEstacao/2){
 								Random rand=null;
 								velocidade+=rand.nextInt((20 - 10) + 1) + 10;
+								alterouVel=true;
 							}
 						}
+					}else if(velocidade!=0 && dist<=zonaProtegida && (destCoordX!=destXOutro || destCoordY!=destYOutro) && (origemCoordX!=origemXOutro || origemCoordY!=origemYOutro)) {
+						System.out.println("Choque entre "+this.myAgent.getLocalName()+ " e "+msg.getSender().getLocalName());
+						doDelete();
 					}
-				}else if(msg != null && msg.getPerformative() == ACLMessage.CONFIRM) {
+				}else if(msg != null && msg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL) {
 					velocidade=Double.parseDouble(msg.getContent());
-				}else if (msg != null && msg.getPerformative() == ACLMessage.AGREE) {
+				}else if (msg != null && msg.getPerformative() == ACLMessage.CONFIRM) {
 					autorizacaoPartida=true;
 					String[] coordsEstacao1 = msg.getContent().split(";");
 					coordX=Double.parseDouble(coordsEstacao1[0]);
@@ -257,15 +274,17 @@ public class AgenteAeronave extends Agent{
 					origemCoordX=Double.parseDouble(coordsEstacao1[0]);
 					origemCoordY=Double.parseDouble(coordsEstacao1[1]);
 					System.out.println(aes.get(conta)+" confirmou pedido de "+name);
-				}else if (msg != null && msg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL) {
+				}else if (msg != null && msg.getPerformative() == ACLMessage.AGREE) {
 					autorizacaoChegada=true;
 					String[] coordsEstacao2 = msg.getContent().split(";");
 					destCoordX=Double.parseDouble(coordsEstacao2[0]);
 					destCoordY=Double.parseDouble(coordsEstacao2[1]);
-					distPercorrer=Math.sqrt(((Math.pow((destCoordX - coordX), 2)) + (Math.pow((destCoordY - coordY), 2))));
+					zonaAlertaEstacao=Double.parseDouble(coordsEstacao2[2]);
+					zonaProtegidaEstacao=Double.parseDouble(coordsEstacao2[3]);
+					distPercorrer=Double.parseDouble(coordsEstacao2[4]);
 					direcaoX=(destCoordX-coordX)/distPercorrer;
 					direcaoY=(destCoordY-coordY)/distPercorrer;
-					velocidade=distPercorrer/50;
+					velocidade=zonaProtegidaEstacao;
 					distPercorrida=0;
 					descolou=true;
 					System.out.println(aes.get(conta+1)+" confirmou pedido de "+name);
@@ -277,7 +296,7 @@ public class AgenteAeronave extends Agent{
 private class Aterragem extends CyclicBehaviour{
 		public void action() {
 			if(conta<aes.size()-1 && !dentroAP  && velocidade!=0) {
-				if(Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2)) <= zonaAlerta)
+				if(Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2)) <= zonaAlertaEstacao)
 					dentroAP=true;
 				if(dentroAP){
 					try {
@@ -290,20 +309,20 @@ private class Aterragem extends CyclicBehaviour{
 							for (int i = 0; i < results.length; ++i) {
 								DFAgentDescription dfd2 = results[i];
 								AID provider = dfd2.getName();
-								ACLMessage msg2 = new ACLMessage(ACLMessage.REQUEST);
+								ACLMessage msg2 = new ACLMessage(ACLMessage.PROPOSE);
 								msg2.addReceiver(provider);
-								msg2.setContent("PEDIDOATERRAGEM");
+								msg2.setContent(name);
 								System.out.println(name+" pediu para efetuar aterragem "+aes.get(conta));
 								send(msg2);
 							}
 						}
 					} catch(FIPAException e) {
-						    	e.printStackTrace();
+						e.printStackTrace();
 					}
 				}
 			}
 			if(conta<aes.size()-1 && !fimViagem && velocidade!=0){
-				if(Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2)) <= zonaProtegida)
+				if(Math.sqrt(Math.pow(destCoordX - coordX, 2) + Math.pow(destCoordY - coordY, 2)) <= zonaProtegidaEstacao)
 					fimViagem=true;
 				if(fimViagem) {
 					try {
@@ -318,7 +337,7 @@ private class Aterragem extends CyclicBehaviour{
 								AID provider2 = dfd4.getName();
 								ACLMessage msg4 = new ACLMessage(ACLMessage.INFORM);
 								msg4.addReceiver(provider2);
-								msg4.setContent("FIMDEVIAGEM");
+								msg4.setContent(name);
 								System.out.println(name+" declarou fim de viagem "+aes.get(conta));
 								send(msg4);
 							}
