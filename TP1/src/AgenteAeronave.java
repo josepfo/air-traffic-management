@@ -29,7 +29,6 @@ public class AgenteAeronave extends Agent{
 	private boolean autorizacaoPartida;
 	private boolean autorizacaoChegada;
 	private boolean dentroAP;
-	private boolean descolou;
 	private boolean fimViagem;
 	private double velocidade;
 	private double velocidadeMax;
@@ -66,7 +65,6 @@ public class AgenteAeronave extends Agent{
 		autorizacaoPartida=false;
 		autorizacaoChegada=false;
 		dentroAP=false;
-		descolou=false;
 		fimViagem=false;
 		velocidade=0;
 		velocidadeMax=100;
@@ -166,8 +164,7 @@ public class AgenteAeronave extends Agent{
 				}catch (FIPAException e) {
 					e.printStackTrace();
 				}
-			}
-			else if(conta<aes.size()-1 && velocidade==0 && !autorizacaoChegada) {
+			}else if(conta<aes.size()-1 && velocidade==0 && !autorizacaoChegada && autorizacaoPartida) {
 				try {
 					DFAgentDescription dfd3 = new DFAgentDescription();
 					ServiceDescription sd3 = new ServiceDescription();
@@ -183,6 +180,26 @@ public class AgenteAeronave extends Agent{
 							msgLocal2.setContent(name+";"+coordX+";"+coordY+";"+velocidadeMax/2);
 							System.out.println(name+" pediu para iniciar viagem a "+aes.get(conta+1));
 							send(msgLocal2);
+						}
+					}
+				}catch (FIPAException e) {
+					e.printStackTrace();
+				}
+			}else if(conta<aes.size()-1 && velocidade==0 && autorizacaoChegada && autorizacaoPartida) {
+				try {
+					DFAgentDescription dfd5 = new DFAgentDescription();
+					ServiceDescription sd5 = new ServiceDescription();
+					sd5.setType(aes.get(conta));
+					dfd5.addServices(sd5);
+					DFAgentDescription[] results3 = DFService.search(this.myAgent, dfd5);
+					if (results3.length > 0) {
+						for (int i = 0; i < results3.length; ++i) {
+							DFAgentDescription dfd6 = results3[i];
+							AID provider3 = dfd6.getName();
+							ACLMessage msgLocal3 = new ACLMessage(ACLMessage.INFORM_IF);
+							msgLocal3.addReceiver(provider3);
+							msgLocal3.setContent(name);
+							send(msgLocal3);
 						}
 					}
 				}catch (FIPAException e) {
@@ -211,7 +228,7 @@ public class AgenteAeronave extends Agent{
 							if(!provider.equals(this.myAgent.getAID())){
 								ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
 								msg.addReceiver(provider);
-								msg.setContent(coordX+";"+coordY+";"+direcaoX+";"+direcaoY+";"+distPercorrer+";"+destCoordX+";"+destCoordY+";"+origemCoordX+";"+origemCoordY);
+								msg.setContent(coordX+";"+coordY+";"+direcaoX+";"+direcaoY+";"+distPercorrer+";"+destCoordX+";"+destCoordY+";"+origemCoordX+";"+origemCoordY+";"+nrPassageiros);
 								send(msg);
 							}
 						}
@@ -248,13 +265,20 @@ public class AgenteAeronave extends Agent{
 						    alterouDir=true;
 						}else if((ang!=0 && ang!=Math.PI) && (destCoordX!=destXOutro || destCoordY!=destYOutro) && (origemCoordX!=origemXOutro || origemCoordY!=origemYOutro)) {
 							double distOutro=Double.parseDouble(coordsOutro[4]);
+							double passOutro=Double.parseDouble(coordsOutro[9]);
 							if(distOutro>distPercorrer && velocidade<zonaProtegidaEstacao+zonaProtegidaEstacao/2) {
 								velocidade+=zonaProtegidaEstacao/2;
 								alterouVel=true;
 							} else if(distOutro<distPercorrer && velocidade>zonaProtegidaEstacao-zonaProtegidaEstacao/2){
 								velocidade-=zonaProtegidaEstacao/2;
 								alterouVel=true;
-							} else if(velocidade<zonaProtegidaEstacao+zonaProtegidaEstacao/2){
+							} else if(passOutro<nrPassageiros && velocidade<zonaProtegidaEstacao+zonaProtegidaEstacao/2) {
+								velocidade+=zonaProtegidaEstacao/2;
+								alterouVel=true;
+							} else if(passOutro>nrPassageiros && velocidade>zonaProtegidaEstacao-zonaProtegidaEstacao/2){
+								velocidade-=zonaProtegidaEstacao/2;
+								alterouVel=true;
+							}else if(velocidade<zonaProtegidaEstacao+zonaProtegidaEstacao/2){
 								Random rand=null;
 								velocidade+=rand.nextInt((20 - 10) + 1) + 10;
 								alterouVel=true;
@@ -286,7 +310,6 @@ public class AgenteAeronave extends Agent{
 					direcaoY=(destCoordY-coordY)/distPercorrer;
 					velocidade=zonaProtegidaEstacao;
 					distPercorrida=0;
-					descolou=true;
 					System.out.println(aes.get(conta+1)+" confirmou pedido de "+name);
 				}
 			}
@@ -312,7 +335,7 @@ private class Aterragem extends CyclicBehaviour{
 								ACLMessage msg2 = new ACLMessage(ACLMessage.PROPOSE);
 								msg2.addReceiver(provider);
 								msg2.setContent(name);
-								System.out.println(name+" pediu para efetuar aterragem "+aes.get(conta));
+								System.out.println(name+" pediu para efetuar aterragem "+aes.get(conta+1));
 								send(msg2);
 							}
 						}
@@ -351,7 +374,6 @@ private class Aterragem extends CyclicBehaviour{
 					autorizacaoChegada=false;
 					fimViagem=false;
 					dentroAP=false;
-					descolou=false;
 				}
 			}
 		}
