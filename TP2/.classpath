@@ -3,5 +3,7 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8"/>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="lib" path="C:/Users/zeped/OneDrive/Ambiente de Trabalho/4ºano/SSI/JADE/jade/lib/jade.jar"/>
+	<classpathentry kind="lib" path="C:/Users/zeped/OneDrive/Ambiente de Trabalho/4ºano/Sistemas Inteligentes/Agentes Inteligentes/xchart-3.5.2/xchart-3.5.2.jar"/>
+	<classpathentry kind="lib" path="C:/Users/zeped/OneDrive/Ambiente de Trabalho/4ºano/Sistemas Inteligentes/Agentes Inteligentes/xchart-3.5.2/xchart-demo-3.5.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -1,4 +1,13 @@
 import jade.core.Runtime;
+
+import java.util.Timer;
+import java.util.TimerTask;
+
+import javax.swing.JFrame;
+import javax.swing.WindowConstants;
+import org.knowm.xchart.BubbleChart;
+import org.knowm.xchart.XChartPanel;
+import Agents.AgenteInterface;
 import jade.core.Profile;
 import jade.core.ProfileImpl;
 import jade.wrapper.AgentController;
@@ -43,6 +52,7 @@ public class Main {
 	public static void main(String[] args) {
 		Main a = new Main();
 		a.initMainContainerInPlatform("localhost", "9888", "Main");
+		a.startAgentInPlatform("AI", "Agents.AgenteInterface",new Object[0]);
 		Object[] aargs3=new Object[3];
 		aargs3[0]=(double)0.0;
 		aargs3[1]=(double)0.0;
