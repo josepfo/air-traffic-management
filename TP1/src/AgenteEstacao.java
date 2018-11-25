@@ -32,7 +32,7 @@ public class AgenteEstacao extends Agent{
 		this.totalPistas = 5;
 		this.nrPistasOcupadas = 0;
 		this.totalEstacionamentos = 5;
-		this.nrEstOcupados = 0;
+		this.nrEstOcupados = 1;
 		Object[] args = getArguments();
 		if (args != null && args.length>0) {
 			coordX=(double) args[0];
@@ -59,48 +59,44 @@ public class AgenteEstacao extends Agent{
 			ACLMessage resp=null;
 			if(msg != null)
 				resp=msg.createReply();
-			if (msg != null && msg.getPerformative() == ACLMessage.REQUEST) {
-				if(condMeteo && nrPistasOcupadas < totalPistas) {
-					nrEstOcupados--;
-					resp.setContent(coordX+";"+coordY);
-					resp.setPerformative(ACLMessage.CONFIRM);
-					send(resp);
-				}
-			}else if(msg != null && msg.getPerformative() == ACLMessage.REQUEST_WHEN) {
-				if((nrEstOcupados < totalEstacionamentos) && condMeteo) {
-					nrEstOcupados++;
-					String[] coordsAviao = msg.getContent().split(";");
-					double aviaoCoordX=Double.parseDouble(coordsAviao[1]);
-					double aviaoCoordY=Double.parseDouble(coordsAviao[2]);
-					double vel=Double.parseDouble(coordsAviao[3]);
-					double distPercorrer=Math.sqrt(((Math.pow((aviaoCoordX - coordX), 2)) + (Math.pow((aviaoCoordY - coordY), 2))));
-					listaPrioridade=adicionaLista(distPercorrer/vel,coordsAviao[0]);
-					resp.setContent(coordX+";"+coordY+";"+zonaAlerta+";"+zonaProtegida+";"+distPercorrer);
-					resp.setPerformative(ACLMessage.AGREE);
-					send(resp);
-				}
-			}else if(msg != null && msg.getPerformative() == ACLMessage.PROPOSE) {
-				resp.setContent(100+"");
+			if (msg != null && msg.getPerformative() == ACLMessage.REQUEST && condMeteo && nrPistasOcupadas < totalPistas) {
+				nrPistasOcupadas++;
+				nrEstOcupados--;
+				resp.setContent(coordX+";"+coordY);
+				resp.setPerformative(ACLMessage.CONFIRM);
+				send(resp);
+			}else if(msg != null && msg.getPerformative() == ACLMessage.REQUEST_WHEN && nrEstOcupados < totalEstacionamentos && condMeteo) {
+				nrEstOcupados++;
+				String[] coordsAviao = msg.getContent().split(";");
+				double aviaoCoordX=Double.parseDouble(coordsAviao[1]);
+				double aviaoCoordY=Double.parseDouble(coordsAviao[2]);
+				double vel=Double.parseDouble(coordsAviao[3]);
+				double distPercorrer=Math.sqrt(((Math.pow((aviaoCoordX - coordX), 2)) + (Math.pow((aviaoCoordY - coordY), 2))));
+				adicionaLista(distPercorrer/vel,coordsAviao[0]);
+				resp.setContent(coordX+";"+coordY+";"+zonaAlerta+";"+zonaProtegida+";"+distPercorrer);
+				resp.setPerformative(ACLMessage.AGREE);
+				send(resp);
+			}else if(msg != null && msg.getPerformative() == ACLMessage.PROPOSE && nrPistasOcupadas<totalPistas) {
+				nrPistasOcupadas++;
 				resp.setPerformative(ACLMessage.ACCEPT_PROPOSAL);
-				double vel=zonaProtegida-5*getVelocidade(msg.getContent());
+				double vel=zonaProtegida-10*getVelocidade(msg.getContent());
 				resp.setContent(vel+"");
 				send(resp);
 			}else if(msg != null && msg.getPerformative() == ACLMessage.INFORM) {
 				String n=msg.getContent();
-				listaPrioridade=removeLista(n);
-				nrEstOcupados--;
+				removeLista(n);
 				nrPistasOcupadas--;
 			}else if(msg != null && msg.getPerformative() == ACLMessage.INFORM_IF) {
 				String[] coordsAviao = msg.getContent().split(";");
 				double temp1=Double.parseDouble(coordsAviao[1]);
 				double temp2=Double.parseDouble(coordsAviao[2]);
-				listaPrioridade=removeLista(coordsAviao[0]);
-				listaPrioridade=adicionaLista(temp1+temp2,coordsAviao[0]);
+				removeLista(coordsAviao[0]);
+				adicionaLista(temp1+temp2,coordsAviao[0]);
 			}
 		}
 	}
 	
-	private List<String> adicionaLista(double tempo, String name) {
+	private void adicionaLista(double tempo, String name) {
 		double tempoAux=0.0;
 		if(listaPrioridade.size()==0)
 			listaPrioridade.add(0, name+";"+tempo);
@@ -108,11 +104,12 @@ public class AgenteEstacao extends Agent{
 			for(int i=0;i<listaPrioridade.size();i++) {
 				String[] infoAux = listaPrioridade.get(i).split(";");
 				tempoAux=Double.parseDouble(infoAux[1]);
-				if(tempo<tempoAux)
+				if(tempo<tempoAux) {
 					listaPrioridade.add(i, name+";"+tempo);
+					break;
+				}
 			}
 		}
-		return listaPrioridade;
 	}
 	
 	private double getVelocidade(String name) {
@@ -127,7 +124,7 @@ public class AgenteEstacao extends Agent{
 		return res;
 	}
 	
-	private List<String> removeLista(String name) {
+	private void removeLista(String name) {
 		for(int i=0;i<listaPrioridade.size();i++) {
 			String[] infoAux = listaPrioridade.get(i).split(";");
 			if(infoAux[0].equals(name)) {
@@ -135,7 +132,6 @@ public class AgenteEstacao extends Agent{
 				break;
 			}
 		}
-		return listaPrioridade;
 	}
 		
 	protected void takeDown() {
