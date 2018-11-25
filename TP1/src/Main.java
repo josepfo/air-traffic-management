@@ -1,15 +1,8 @@
-
-
 import jade.core.Runtime;
 import jade.core.Profile;
 import jade.core.ProfileImpl;
 import jade.wrapper.AgentController;
 import jade.wrapper.ContainerController;
-import jade.wrapper.StaleProxyException;
-
-
-
-
 
 public class Main {
 
@@ -17,41 +10,30 @@ public class Main {
 	ContainerController container;
 
 	public ContainerController initContainerInPlatform(String host, String port, String containerName) {
-		// Get the JADE runtime interface (singleton)
 		this.rt = Runtime.instance();
-
-		// Create a Profile, where the launch arguments are stored
 		Profile profile = new ProfileImpl();
 		profile.setParameter(Profile.CONTAINER_NAME, containerName);
 		profile.setParameter(Profile.MAIN_HOST, host);
 		profile.setParameter(Profile.MAIN_PORT, port);
-		// create a non-main agent container
 		ContainerController container = rt.createAgentContainer(profile);
 		return container;
 	}
 
 	public void initMainContainerInPlatform(String host, String port, String containerName) {
-
-		// Get the JADE runtime interface (singleton)
 		this.rt = Runtime.instance();
-
-		// Create a Profile, where the launch arguments are stored
 		Profile prof = new ProfileImpl();
 		prof.setParameter(Profile.CONTAINER_NAME, containerName);
 		prof.setParameter(Profile.MAIN_HOST, host);
 		prof.setParameter(Profile.MAIN_PORT, port);
 		prof.setParameter(Profile.MAIN, "true");
 		prof.setParameter(Profile.GUI, "true");
-
-		// create a main agent container
 		this.container = rt.createMainContainer(prof);
 		rt.setCloseVM(true);
-
 	}
 
-	public void startAgentInPlatform(String name, String classpath) {
+	public void startAgentInPlatform(String name, String classpath, Object args[]) {
 		try {
-			AgentController ac = container.createNewAgent(name, classpath, new Object[0]);
+			AgentController ac = container.createNewAgent(name, classpath, args);
 			ac.start();
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -60,16 +42,51 @@ public class Main {
 
 	public static void main(String[] args) {
 		Main a = new Main();
-
 		a.initMainContainerInPlatform("localhost", "9888", "Main");
-        
-		for(int i = 1; i<=4;i++)
-				a.startAgentInPlatform("Estacao"+i, "AgenteEstacao");
-		
-		for(int j = 1; j<=6;j++)
-				a.startAgentInPlatform("Aeronave"+j, "AgenteAeronave");
-		
-			
+		Object[] aargs3=new Object[3];
+		aargs3[0]=(double)0.0;
+		aargs3[1]=(double)0.0;
+		aargs3[2]=(boolean)true;
+		a.startAgentInPlatform("AE1", "Agents.AgenteEstacao",aargs3);
+		Object[] aargs4=new Object[3];
+		aargs4[0]=(double)0.0;
+		aargs4[1]=(double)5000.0;
+		aargs4[2]=(boolean)true;
+		a.startAgentInPlatform("AE2", "Agents.AgenteEstacao",aargs4);
+		Object[] aargs5=new Object[3];
+		aargs5[0]=(double)5000.0;
+		aargs5[1]=(double)5000.0;
+		aargs5[2]=(boolean)true;
+		a.startAgentInPlatform("AE3", "Agents.AgenteEstacao",aargs5);
+		Object[] aargs6=new Object[3];
+		aargs6[0]=(double)7500.0;
+		aargs6[1]=(double)2500.0;
+		aargs6[2]=(boolean)true;
+		a.startAgentInPlatform("AE4", "Agents.AgenteEstacao",aargs6);
+		Object[] aargs1=new Object[2];
+		aargs1[0]=new String("AE1");
+		aargs1[1]=new String("AE2");
+		//aargs1[2]=new String("AE1");
+		a.startAgentInPlatform("AA1", "Agents.AgenteAeronave",aargs1);
+		Object[] aargs2=new Object[2];
+		aargs2[0]=new String("AE1");
+		aargs2[1]=new String("AE4");
+		a.startAgentInPlatform("AA2", "Agents.AgenteAeronave",aargs2);
+		Object[] aargs7=new Object[2];
+		aargs7[0]=new String("AE2");
+		aargs7[1]=new String("AE1");
+		a.startAgentInPlatform("AA3", "Agents.AgenteAeronave",aargs7);
+		Object[] aargs8=new Object[2];
+		aargs8[0]=new String("AE2");
+		aargs8[1]=new String("AE4");
+		a.startAgentInPlatform("AA4", "Agents.AgenteAeronave",aargs8);
+		Object[] aargs9=new Object[2];
+		aargs9[0]=new String("AE3");
+		aargs9[1]=new String("AE1");
+		a.startAgentInPlatform("AA5", "Agents.AgenteAeronave",aargs9);
+		Object[] aargs10=new Object[2];
+		aargs10[0]=new String("AE3");
+		aargs10[1]=new String("AE4");
+		a.startAgentInPlatform("AA6", "Agents.AgenteAeronave",aargs10);
 	}
 }
-
